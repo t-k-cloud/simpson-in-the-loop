@@ -12,32 +12,11 @@ try {
   const fileContent = fs.readFileSync('credentials.json')
   credentials = JSON.parse(fileContent)
 } catch (err) {
-  console.log('No credentials.')
+  console.log('No credentials found.')
   return
 }
 
-;(async function() {
-  const browser = await puppeteer.launch({ headless: false })
-  const context = await browser.createBrowserContext()
-
-  let cookies = null
-  try {
-    const fileContent = fs.readFileSync('cookies.json')
-    cookies = JSON.parse(fileContent)
-  } catch (err) {
-    console.log('No cookies.')
-  }
-  await context.setCookie(...cookies)
-
-  const page = await context.newPage()
-  await page.setViewport({ width: 800, height: 800 })
-
-  await page.goto('https://x.com/home')
-  await page.waitForNetworkIdle({ idleTime: 1500 })
-
-  await new Promise(r => setTimeout(r, 8000))
-  return
-
+async function login(page) {
   await page.waitForSelector("[autocomplete=username]")
   await page.type("input[autocomplete=username]", credentials.username, { delay: 50 })
 
@@ -63,10 +42,34 @@ try {
     document.querySelectorAll('button[role="button"]')[3].click()
   )
   await page.waitForNetworkIdle({ idleTime: 1500 })
+}
 
-  cookies = await context.cookies()
-  await fs.writeFileSync('cookies.json', JSON.stringify(cookies))
+;(async function() {
+  const browser = await puppeteer.launch({ headless: false })
+  const context = await browser.createBrowserContext()
 
+  try {
+    const fileContent = fs.readFileSync('cookies.json')
+    const cookies = JSON.parse(fileContent)
+    await context.setCookie(...cookies)
+  } catch (err) {
+    console.log('No cookies found.')
+  }
+
+  const page = await context.newPage()
+  await page.setViewport({ width: 800, height: 800 })
+
+  await page.goto('https://x.com/home')
+  await page.waitForNetworkIdle({ idleTime: 1500 })
+
+  const pageTitle = await page.title()
+  if (!pageTitle.includes('Home')) {
+    await login(page)
+    const cookies = await context.cookies()
+    await fs.writeFileSync('cookies.json', JSON.stringify(cookies))
+  }
+
+  //await new Promise(r => setTimeout(r, 8000))
   await context.close()
   await browser.close()
 })()
